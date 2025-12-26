@@ -127,7 +127,7 @@ def run_single_dataset(dataset_path, subdirs, script_path, timeout):
     print(f"{'='*70}")
     print(f"Folder: {dataset_path.parent.name}")
     print(f"File: {dataset_path.name}")
-    print(f"Features: Weight Decay (1e-4) + Dual SHAP Interpretability")
+    #print(f"Features: Weight Decay (1e-4) + Dual SHAP Interpretability")
 
     # --- per‑dataset overrides (CIFAR‑10 special case) ---
     effective_timeout = timeout
