@@ -12,8 +12,8 @@
 #SBATCH --mem=64G
 #SBATCH --time=96:00:00
 
-#SBATCH --output=/project/def-arashmoh/shahab33/Msc/TrustTabVis/job_logs/production_%A.out
-#SBATCH --error=/project/def-arashmoh/shahab33/Msc/TrustTabVis/job_logs/production_%A.err
+#SBATCH --output=/project/def-arashmoh/shahab33/Msc/Tab2Vis/job_logs/production_%A.out
+#SBATCH --error=/project/def-arashmoh/shahab33/Msc/Tab2Vis/job_logs/production_%A.err
 
 #SBATCH --mail-user=aminhajjr@gmail.com
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -22,7 +22,7 @@
 # Configuration
 #=======================================================================
 PROJECT_DIR="/project/def-arashmoh/shahab33/Msc"
-TAB2IMG_DIR="$PROJECT_DIR/TrustTabVis"
+TAB2IMG_DIR="$PROJECT_DIR/Tab2Vis"
 DATASETS_DIR="$PROJECT_DIR/tabularDataset"
 VENV_PATH="$PROJECT_DIR/venvMsc/bin/activate"
 BATCH_SCRIPT="$TAB2IMG_DIR/run_all_datasets.py"
