@@ -50,7 +50,7 @@ def create_output_structure(base_output_dir, job_id):
         f.write(f"  latex/            - LaTeX tables for paper\n")
         f.write(f"  logs/             - Processing logs (JSONL format)\n")
         f.write(f"  interpretability/ - Dual SHAP outputs (9 files per dataset)\n")
-        f.write(f"\nImages saved to: /project/def-arashmoh/shahab33/Msc/TrustTabVis/imageout/\n")
+        f.write(f"\nImages saved to: /project/def-arashmoh/shahab33/Msc/Tab2Vis/imageout/\n")
     
     return run_dir, subdirs
 
