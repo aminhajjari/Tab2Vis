@@ -656,12 +656,39 @@ for col in X_df.columns:
     else:
         X_df[col] = pd.to_numeric(X_df[col], errors='coerce')
 
-print(f"[INFO] Imputing missing values with median...")
-imputer = SimpleImputer(strategy='median')
-X = imputer.fit_transform(X_df)
+# ========== MLE-BASED IMPUTATION (MissForest) ==========
+print(f"[INFO] Imputing missing values with MLE-based MissForest...")
 imputed_count = X_df.isnull().sum().sum()
+
 if imputed_count > 0:
-    print(f"[INFO] Imputed {imputed_count} missing values")
+    missing_pct = (imputed_count / X_df.size) * 100
+    print(f"[INFO] Missing values detected: {imputed_count:,} ({missing_pct:.2f}% of data)")
+    
+    # MissForest: ExtraTrees-based iterative imputation (MLE approach)
+    imputer = IterativeImputer(
+        estimator=ExtraTreesRegressor(
+            n_estimators=10,      # Number of trees
+            max_depth=10,         # Tree depth
+            random_state=42,
+            n_jobs=-1            # Use all CPU cores
+        ),
+        max_iter=10,             # Maximum imputation iterations
+        tol=1e-3,                # Convergence tolerance
+        imputation_order='ascending',  # Start with least missing features
+        random_state=42,
+        verbose=0
+    )
+    
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=UserWarning)
+        X = imputer.fit_transform(X_df)
+    
+    print(f"[INFO] Successfully imputed {imputed_count:,} missing values using MissForest (MLE)")
+    print(f"[INFO] Method: Iterative imputation with ExtraTrees regression")
+else:
+    X = X_df.values
+    print(f"[INFO] No missing values detected - using raw feature matrix")
+    ########
 
 unique_values = sorted(set(y))
 num_classes = len(unique_values)
