@@ -25,6 +25,9 @@ import scipy.io.arff as arff
 import shap 
 from tqdm import tqdm
 from adopt import ADOPT 
+from sklearn.experimental import enable_iterative_imputer  # Must be before IterativeImputer
+from sklearn.impute import IterativeImputer
+from sklearn.ensemble import ExtraTreesRegressor
 ######Interpretability#######
 
 def calculate_dual_shap_interpretability(model, test_loader, device, n_features, num_classes, csv_name, index):
