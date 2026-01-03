@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 import torch
@@ -24,9 +25,6 @@ import scipy.io.arff as arff
 import shap 
 from tqdm import tqdm
 from adopt import ADOPT 
-from sklearn.experimental import enable_iterative_imputer  # Must be before IterativeImputer
-from sklearn.impute import IterativeImputer
-from sklearn.ensemble import ExtraTreesRegressor
 ######Interpretability#######
 
 def calculate_dual_shap_interpretability(model, test_loader, device, n_features, num_classes, csv_name, index):
@@ -525,74 +523,13 @@ if df.shape[1] < 2:
 print(f"[INFO] Initial dataset shape: {df.shape}")
 print(f"[INFO] Columns: {df.columns.tolist()[:10]}...")
 
-# ============================================================
-# This fixes missing value detection and categorical encoding
-# ============================================================
-
-# ============================================================
-# STEP 1: COMPREHENSIVE MISSING VALUE DETECTION
-# ============================================================
-print(f"\n{'='*70}")
-print(f"MISSING VALUE DETECTION & CLEANING")
-print(f"{'='*70}")
-
-# Expanded list of missing markers (including whitespace variations)
-missing_markers = [
-    '?', '??', '???',           # Question marks
-    '', ' ', '  ', '   ',       # Blank spaces (1-3 spaces)
-    'nan', 'NaN', 'NAN',        # NaN variants
-    'NA', 'N/A', 'n/a',         # NA variants
-    'null', 'Null', 'NULL',     # Null variants
-    'None', 'none',             # None variants
-    '-', '--', '---',           # Dashes
-    '.', '..', '...',           # Dots
-    'missing', 'Missing',       # Explicit missing
-    'unknown', 'Unknown',       # Unknown values
-    '#N/A', '#NA', '#DIV/0!',  # Excel errors
-]
-
-print(f"[INFO] Checking for {len(missing_markers)} types of missing value markers")
-
-# Count initial missing before replacement
-initial_missing_raw = df.isnull().sum().sum()
-print(f"[INFO] Initial NaN values: {initial_missing_raw:,}")
-
-# Replace all missing markers with np.nan
+# Handle missing values
+missing_markers = ['?', '', ' ', 'nan', 'NaN', 'NA', 'null', 'None', '-']
 df = df.replace(missing_markers, np.nan)
+initial_missing = df.isnull().sum().sum()
+print(f"[INFO] Initial missing values: {initial_missing}")
 
-# Also replace whitespace-only strings
-df = df.apply(lambda x: x.map(lambda y: np.nan if isinstance(y, str) and y.strip() == '' else y))
-
-# Count after replacement
-initial_missing_total = df.isnull().sum().sum()
-markers_found = initial_missing_total - initial_missing_raw
-
-if markers_found > 0:
-    print(f"[INFO] ✓ Found and replaced {markers_found:,} missing value markers")
-    print(f"[INFO] Total missing values: {initial_missing_total:,} "
-          f"({(initial_missing_total / df.size) * 100:.2f}% of data)")
-else:
-    print(f"[INFO] No additional missing markers found")
-
-# Show which columns have missing values
-if initial_missing_total > 0:
-    missing_by_col = df.isnull().sum()
-    cols_with_missing = missing_by_col[missing_by_col > 0]
-    
-    print(f"\n[INFO] Columns with missing values: {len(cols_with_missing)}/{len(df.columns)}")
-    if len(cols_with_missing) <= 15:
-        for col, count in cols_with_missing.items():
-            pct = (count / len(df)) * 100
-            print(f"       {col[:40]:40s}: {count:5d} ({pct:5.1f}%)")
-    else:
-        print(f"       Top 15 columns with most missing:")
-        for col, count in cols_with_missing.nlargest(15).items():
-            pct = (count / len(df)) * 100
-            print(f"       {col[:40]:40s}: {count:5d} ({pct:5.1f}%)")
-
-print(f"{'='*70}\n")
-
-# ========== IMPROVED TARGET COLUMN DETECTION (KEEP YOUR EXISTING CODE) ==========
+# ========== IMPROVED TARGET COLUMN DETECTION ==========
 target_col = None
 
 # Strategy 1: For ARFF files, use metadata to identify target
@@ -600,9 +537,11 @@ if arff_meta is not None:
     print("[INFO] Detecting target column from ARFF metadata...")
     try:
         attr_names = list(arff_meta.names())
+        # ARFF convention: last attribute is typically the class/target
         target_col = attr_names[-1]
         print(f"[INFO] ARFF metadata indicates target: '{target_col}'")
         
+        # Verify this column exists in dataframe
         if target_col not in df.columns:
             print(f"[WARNING] Metadata target '{target_col}' not found in dataframe. Falling back...")
             target_col = None
@@ -632,14 +571,16 @@ if target_col is None:
 
 print(f"[INFO] Target column: {target_col}")
 
-# ========== EARLY CLASS DISTRIBUTION CHECK (KEEP YOUR EXISTING CODE) ==========
+# ========== EARLY CLASS DISTRIBUTION CHECK ==========
 print(f"\n[INFO] Checking class distribution before preprocessing...")
 if target_col in df.columns:
+    # Show raw distribution
     target_value_counts = df[target_col].value_counts()
     print(f"[INFO] Raw class distribution:")
     for val, count in target_value_counts.items():
         print(f"  Class '{val}': {count} samples")
     
+    # Check for classes with too few samples
     min_samples_per_class = 10
     rare_classes = target_value_counts[target_value_counts < min_samples_per_class]
     
@@ -648,6 +589,7 @@ if target_col in df.columns:
         for cls, count in rare_classes.items():
             print(f"  Class '{cls}': {count} samples")
         
+        # Filter out rare classes
         valid_classes = target_value_counts[target_value_counts >= min_samples_per_class].index.tolist()
         
         if len(valid_classes) < 2:
@@ -663,6 +605,7 @@ if target_col in df.columns:
         print(f"   ⚠️  WARNING: Removed {original_size - filtered_size} samples ({pct_removed:.1f}% of original data)")
         print(f"[INFO] New dataset shape: {df.shape}")
         
+        # Show new distribution
         new_distribution = df[target_col].value_counts()
         print(f"[INFO] Filtered class distribution:")
         for val, count in new_distribution.items():
@@ -671,7 +614,6 @@ else:
     print(f"[ERROR] Target column '{target_col}' not found in dataframe!")
     exit(1)
 
-# ========== DROP HIGH-MISSING COLUMNS ==========
 missing_threshold = 0.5
 missing_pct = df.isnull().sum() / len(df)
 cols_to_drop = missing_pct[missing_pct > missing_threshold].index.tolist()
@@ -685,7 +627,6 @@ if cols_to_drop:
 if df.shape[1] <= 1:
     raise ValueError("All feature columns were dropped. Dataset unusable.")
 
-# ========== ENCODE TARGET VARIABLE ==========
 if df[target_col].dtype == 'object' or not np.issubdtype(df[target_col].dtype, np.number):
     print(f"[INFO] Converting labels to integers...")
     le_target = LabelEncoder()
@@ -704,184 +645,21 @@ if num_classes > 20:
 if num_classes < 2:
     raise ValueError(f"Dataset has only {num_classes} class. Need at least 2.")
 
-# ============================================================
-# STEP 2: ENCODE CATEGORICAL FEATURES (FIXED!)
-# ============================================================
 X_df = df.drop(columns=[target_col])
-
-print(f"\n{'='*70}")
-print(f"ENCODING CATEGORICAL FEATURES (PRESERVING NaN)")
-print(f"{'='*70}")
-
-# Track missing values before encoding
-missing_before_encoding = X_df.isnull().sum().sum()
-print(f"[INFO] Missing values before encoding: {missing_before_encoding:,}")
-
-# Identify categorical vs numeric columns
-categorical_cols = []
-numeric_cols = []
-
+print(f"[INFO] Encoding categorical features...")
 for col in X_df.columns:
     if X_df[col].dtype == 'object':
-        categorical_cols.append(col)
-    else:
-        numeric_cols.append(col)
-
-print(f"[INFO] Categorical columns: {len(categorical_cols)}")
-print(f"[INFO] Numeric columns: {len(numeric_cols)}")
-
-# Encode categorical columns (PRESERVING NaN!)
-for col in categorical_cols:
-    # CRITICAL FIX: Don't convert NaN to string!
-    # Only encode non-null values
-    mask = X_df[col].notna()
-    
-    if mask.sum() > 0:  # Only if there are non-null values
         le = LabelEncoder()
-        # Fit and transform only non-null values
-        X_df.loc[mask, col] = le.fit_transform(X_df.loc[mask, col].astype(str))
-        # Convert to numeric (NaN stays as NaN)
+        X_df[col] = le.fit_transform(X_df[col].astype(str))
+    else:
         X_df[col] = pd.to_numeric(X_df[col], errors='coerce')
-    else:
-        # Column is all NaN - drop it
-        print(f"[WARNING] Column '{col}' is all NaN - dropping")
-        X_df = X_df.drop(columns=[col])
 
-# Convert numeric columns (coerce errors to NaN)
-for col in numeric_cols:
-    X_df[col] = pd.to_numeric(X_df[col], errors='coerce')
-
-# Track missing values AFTER encoding
-missing_after_encoding = X_df.isnull().sum().sum()
-new_missing = missing_after_encoding - missing_before_encoding
-
-print(f"[INFO] Missing values after encoding: {missing_after_encoding:,}")
-
-if new_missing > 0:
-    print(f"[WARNING] ⚠️  Encoding created {new_missing:,} NEW missing values!")
-    print(f"[INFO] This happens when categorical values can't be converted to numbers")
-    
-    # Show which columns got new missing values
-    missing_diff = X_df.isnull().sum() - df.drop(columns=[target_col]).isnull().sum()
-    new_missing_cols = missing_diff[missing_diff > 0]
-    
-    if len(new_missing_cols) > 0 and len(new_missing_cols) <= 10:
-        print(f"[INFO] Columns with new missing values:")
-        for col, count in new_missing_cols.items():
-            print(f"       {col[:40]:40s}: +{count:4d} new NaN values")
-
-print(f"{'='*70}\n")
-
-# ============================================================
-# STEP 3: ADAPTIVE IMPUTATION (SEES ALL MISSING VALUES NOW!)
-# ============================================================
-print(f"\n{'='*70}")
-print(f"ADAPTIVE MLE-BASED IMPUTATION")
-print(f"{'='*70}")
-
-# NOW this correctly counts ALL missing values (including from encoding)
+print(f"[INFO] Imputing missing values with median...")
+imputer = SimpleImputer(strategy='median')
+X = imputer.fit_transform(X_df)
 imputed_count = X_df.isnull().sum().sum()
-total_values = X_df.size
-missing_pct = (imputed_count / total_values) * 100
-
 if imputed_count > 0:
-    print(f"[INFO] Total missing values to impute: {imputed_count:,} ({missing_pct:.2f}%)")
-    print(f"[INFO] Breakdown:")
-    print(f"       - From data:       {missing_before_encoding:,}")
-    print(f"       - From encoding:   {new_missing:,}")
-    print(f"       - Total to impute: {imputed_count:,}")
-    
-    # Count features with missing values
-    features_with_missing = (X_df.isnull().sum() > 0).sum()
-    print(f"[INFO] Features with missing: {features_with_missing}/{X_df.shape[1]}")
-    
-    # ========== ADAPTIVE IMPUTATION STRATEGY ==========
-    
-    if missing_pct < 0.5:
-        # Very few missing - use fast median
-        print(f"\n[STRATEGY] Using MEDIAN (missing < 0.5%)")
-        from sklearn.impute import SimpleImputer
-        imputer = SimpleImputer(strategy='median')
-        X = imputer.fit_transform(X_df)
-        print(f"[INFO] ✓ Imputed using Median (fast method)")
-    
-    elif missing_pct < 5.0:
-        # Moderate missing - use MissForest
-        print(f"\n[STRATEGY] Using MISSFOREST ({missing_pct:.2f}% missing)")
-        imputer = IterativeImputer(
-            estimator=ExtraTreesRegressor(
-                n_estimators=10,
-                max_depth=10,
-                min_samples_split=5,
-                min_samples_leaf=2,
-                random_state=42,
-                n_jobs=-1
-            ),
-            max_iter=10,
-            tol=1e-3,
-            imputation_order='ascending',
-            random_state=42,
-            verbose=0
-        )
-        
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore')
-            import time
-            start = time.time()
-            X = imputer.fit_transform(X_df)
-            elapsed = time.time() - start
-        
-        print(f"[INFO] ✓ Imputed using MissForest in {elapsed:.1f}s")
-    
-    else:
-        # High missing - use enhanced MissForest
-        print(f"\n[STRATEGY] Using ENHANCED MISSFOREST ({missing_pct:.2f}% missing)")
-        imputer = IterativeImputer(
-            estimator=ExtraTreesRegressor(
-                n_estimators=15,
-                max_depth=12,
-                min_samples_split=3,
-                min_samples_leaf=1,
-                random_state=42,
-                n_jobs=-1
-            ),
-            max_iter=15,
-            tol=1e-4,
-            imputation_order='ascending',
-            random_state=42,
-            verbose=0
-        )
-        
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore')
-            import time
-            start = time.time()
-            X = imputer.fit_transform(X_df)
-            elapsed = time.time() - start
-        
-        print(f"[INFO] ✓ Imputed using Enhanced MissForest in {elapsed:.1f}s")
-    
-    # Verify no missing values remain
-    remaining_missing = np.isnan(X).sum()
-    if remaining_missing > 0:
-        print(f"[ERROR] ⚠️  {remaining_missing} NaN values remain after imputation!")
-        print(f"[INFO] Applying backup median imputation...")
-        from sklearn.impute import SimpleImputer
-        backup = SimpleImputer(strategy='median')
-        X = backup.fit_transform(X)
-        print(f"[INFO] ✓ Backup imputation complete")
-    else:
-        print(f"[INFO] ✓ All missing values successfully imputed")
-    
-    print(f"{'='*70}\n")
-
-else:
-    X = X_df.values
-    print(f"[INFO] No missing values detected")
-    print(f"[INFO] Using raw feature matrix: {X.shape}")
-    print(f"{'='*70}\n")
-
-    ########
+    print(f"[INFO] Imputed {imputed_count} missing values")
 
 unique_values = sorted(set(y))
 num_classes = len(unique_values)
