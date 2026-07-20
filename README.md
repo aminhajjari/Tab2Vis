@@ -94,6 +94,17 @@ datasets/
 
 Datasets are those used in the [OpenML-CC18](https://www.openml.org/search?type=study&study_type=task&id=99) benchmark suite.
 
+### Datasets used in the paper
+
+Tab2Vis is evaluated on the following 67 OpenML-CC18 datasets:
+
+<details>
+<summary>Click to expand full dataset list</summary>
+
+`kr-vs-kp`, `breast-2`, `credit-approval`, `credit-g`, `diabetes`, `sick`, `spambase`, `tic-tac-toe`, `electricity`, `pc4`, `pc3`, `jm1`, `kc2`, `kc1`, `pc1`, `balance-scale`, `cmc`, `splice`, `connect-4`, `dna`, `jungle-chess`, `vehicle`, `analcatdata-authorship`, `GesturePhaseSegmentationProcessed`, `analcatdata-dmft`, `har`, `segment`, `cnae-9`, `mfeat-fourier`, `mfeat-morphological`, `optdigits`, `mfeat-pixel`, `semeion`, `texture`, `bank-marketing`, `banknote-authentication`, `blood-transfusion-service-center`, `ilpd`, `madelon`, `nomao`, `ozone-level-8hr`, `phoneme`, `qsar-biodeg`, `wdbc`, `adult`, `Bioresponse`, `PhishingWebsites`, `cylinder-bands`, `dresses-sales`, `numerai28.6`, `InternetAdvertisements`, `wilt`, `climate-model-simulation-crashes`, `churn`, `car`, `wall-robot-navigation`, `eucalyptus`, `satimage`, `first-order-theorem-proving`, `steel-plates-fault`, `MiceProtein`, `mfeat-factors`, `mfeat-karhunen`, `mfeat-zernike`, `pendigits`, `CIFAR-10`, `vowel`
+
+</details>
+
 ## Usage
 
 ### Single dataset
